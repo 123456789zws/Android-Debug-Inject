@@ -1,0 +1,15 @@
+{
+	"traced_pid": 1,
+	"persistence": true,
+	"childProcess": [
+		{
+			"exec": "/vendor/bin/hw/android.hardware.drm@1.4-service.widevine",
+			"waitSoPath": "/vendor/lib64/libwvhidl.so",
+			"waitFunSym": "",
+			"InjectSO": "/data/local/tmp/libDrmHook.so",
+			"InjectFunSym": "DrmIdHook",
+			"InjectFunArg": "11111111111193baf8cb6a22de8a5ae4bfecc174b1a9405dc71b8b3fac1c734f"
+		}
+
+	]
+}

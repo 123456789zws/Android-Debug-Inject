@@ -40,6 +40,7 @@ private:
 
 struct Module {
     std::string name;
+    int companion;
     int z32 = -1;
     int z64 = -1;
 

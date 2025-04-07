@@ -12,7 +12,7 @@ val defaultCFlags = arrayOf(
 
 android {
     namespace = "com.hepta.zygisk"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 27
@@ -24,6 +24,8 @@ android {
                 cFlags("-std=c18", *defaultCFlags)
                 cppFlags("-std=c++20", *defaultCFlags)
                 abiFilters.add("arm64-v8a")
+                abiFilters.add("armeabi-v7a")
+
             }
         }
     }
@@ -47,6 +49,7 @@ android {
     buildFeatures {
         prefab = true
     }
+    ndkVersion = "27.0.12077973"
 
 }
 

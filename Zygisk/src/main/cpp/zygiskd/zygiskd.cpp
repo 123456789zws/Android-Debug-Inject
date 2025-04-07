@@ -1,4 +1,4 @@
- //
+//
 // Created by chic on 2024/12/4.
 //
 
@@ -13,9 +13,11 @@
 #include <thread>
 #include <fcntl.h>
 #include <sys/epoll.h>
-
+#include <poll.h>
+#include "companion.h"
+#include "misc.hpp"
+#include "vector"
 #define EPOLL_SIZE 10
-
 
 
 
@@ -54,10 +56,76 @@ void Zygiskd::collect_modules(){
     }
 }
 
-void Zygiskd::load_modules() {
 
+// The following code runs in magiskd
 
+static std::vector<int> get_module_fds(bool is_64_bit) {
+    std::vector<int> fds;
+    // All fds passed to send_fds have to be valid file descriptors.
+    // To workaround this issue, send over STDOUT_FILENO as an indicator of an
+    // invalid fd as it will always be /dev/null in magiskd
+    auto module_list = Zygiskd::getInstance().getModule_list();
+#if defined(__LP64__)
+    if (is_64_bit) {
+        std::transform(module_list.begin(), module_list.end(), std::back_inserter(fds),
+                       [](const Module &info) { return info.z64 < 0 ? STDOUT_FILENO : info.z64; });
+    } else
+#endif
+    {
+        std::transform(module_list.begin(), module_list.end(), std::back_inserter(fds),
+                       [](const Module &info) { return info.z32 < 0 ? STDOUT_FILENO : info.z32; });
+    }
+    return fds;
 }
+
+
+static pthread_mutex_t zygiskd_lock = PTHREAD_MUTEX_INITIALIZER;
+static int zygiskd_sockets[] = { -1, -1 };
+#define zygiskd_socket zygiskd_sockets[is_64_bit]
+
+static void connect_companion(int client, bool is_64_bit) {
+    mutex_guard g(zygiskd_lock);
+
+    if (zygiskd_socket >= 0) {
+        // Make sure the socket is still valid
+        pollfd pfd = { zygiskd_socket, 0, 0 };
+        poll(&pfd, 1, 0);
+        if (pfd.revents) {
+            // Any revent means error
+            close(zygiskd_socket);
+            zygiskd_socket = -1;
+        }
+    }
+    if (zygiskd_socket < 0) {
+        int fds[2];
+        socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, fds);
+        zygiskd_socket = fds[0];
+        if (fork_dont_care() == 0) {
+#if defined(__LP64__)
+            std::string exe = Zygiskd::getInstance().get_exec_path();
+#else
+            std::string exe = Zygiskd::getInstance().get_exec_path()+"32";
+#endif
+            // This fd has to survive exec
+            fcntl(fds[1], F_SETFD, 0);
+            char buf[16];
+            ssprintf(buf, sizeof(buf), "%d", fds[1]);
+            execl(exe.c_str(), "","companion", buf, (char *) nullptr);
+            exit(-1);
+        }
+        close(fds[1]);
+        std::vector<int> module_fds = get_module_fds(is_64_bit);
+        socket_utils::send_fds(zygiskd_socket, module_fds.data(), module_fds.size());
+        // Wait for ack
+        if (socket_utils::read_u32(zygiskd_socket) != 0) {
+            LOGE("zygiskd startup error\n");
+            return;
+        }
+    }
+    socket_utils::send_fd(zygiskd_socket, client);
+}
+
+
 
 void handle_daemon_action(int cmd,int fd) {
     LOGD("handle_daemon_action");
@@ -72,19 +140,22 @@ void handle_daemon_action(int cmd,int fd) {
         }
 
         case (uint8_t)zygiskComm::SocketAction::GetProcessFlags:{
+            LOGD("GetProcessFlags");
             uid_t uid =socket_utils::read_u32(fd);
             int flags =  RootImp::getInstance().getProcessFlags(uid);
             socket_utils::write_u32(fd,flags);
-            LOGD("GetProcessFlags");
             break;
         }
         case (uint8_t)zygiskComm::SocketAction::ReadModules:
             LOGD("ReadModules");
             zygiskComm::WriteModules(fd,Zygiskd::getInstance().getModule_list());
             break;
-        case (uint8_t)zygiskComm::SocketAction::RequestCompanionSocket:
+        case (uint8_t)zygiskComm::SocketAction::RequestCompanionSocket:{
             LOGD("RequestCompanionSocket");
+            uint32_t arch = socket_utils::read_u32(fd);
+            connect_companion(fd,arch);
             break;
+        }
         case (uint8_t)zygiskComm::SocketAction::GetModuleDir:
             LOGD("GetModuleDir");
             size_t index = socket_utils::read_usize(fd);
@@ -118,13 +189,14 @@ void zygiskd_handle(int client_fd){
     }
 }
 
-void zygiskd_main(const char* requestSocketPath){
+void zygiskd_main(char * exec_path ,const char* requestSocketPath){
 
     int server_fd;
     int client_fd;
     int epfd;
 
     zygiskComm::InitRequestorSocket(requestSocketPath);
+    Zygiskd::getInstance().set_exec_path(exec_path);
     Zygiskd::getInstance().collect_modules();
     server_fd = socket(AF_UNIX,SOCK_STREAM,0);
 
@@ -195,6 +267,45 @@ void zygiskd_main(const char* requestSocketPath){
 
 int main(int argc, char *argv[]) {
 
-    zygiskd_main("");
+    if (argc > 1) {
+        if (strcmp(argv[1], "companion") == 0) {
+            if (argc < 3) {
+                LOGI("Usage: zygiskd companion <fd>\n");
+                return 1;
+            }
+            int fd = atoi(argv[2]);
+            companion_entry(fd);
+            return 0;
+        }
+
+        else if (strcmp(argv[1], "version") == 0) {
+
+            return 0;
+        }
+
+        else if (strcmp(argv[1], "root") == 0) {
+//            root_impls_setup();
+//
+//            struct root_impl impl;
+//            get_impl(&impl);
+//
+//            char impl_name[LONGEST_ROOT_IMPL_NAME];
+//            stringify_root_impl_name(impl, impl_name);
+//
+//            LOGI("Root implementation: %s\n", impl_name);
+            return 0;
+        }
+        else if (strcmp(argv[1], "unix_socket") == 0) {
+            LOGD("zygiskd start run , arg1:%s",argv[1]);
+            zygiskd_main(argv[0],argv[2]);
+            return 0;
+        }
+        else {
+            LOGI("Usage: zygiskd [companion|version|root|unix_socket]\n");
+            return 0;
+        }
+    }
+
+
     return 0;
 }

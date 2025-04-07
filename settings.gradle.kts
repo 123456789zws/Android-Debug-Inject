@@ -19,7 +19,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Linux-Debug-Inject"
-include(":DebugInject")
+rootProject.name = "Android-Debug-Inject"
+include(":ADI")
 include(":module")
 include(":Zygisk")
+include(":ADILib")

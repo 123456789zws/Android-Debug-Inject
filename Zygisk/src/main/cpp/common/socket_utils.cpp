@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <sys/socket.h>
 #include <unistd.h>
-
+#include "vector"
 #include "socket_utils.h"
 
 namespace socket_utils {
@@ -54,6 +54,9 @@ namespace socket_utils {
         return rec;
     }
 
+
+
+
     void* recv_fds(int sockfd, char* cmsgbuf, size_t bufsz, int cnt) {
         iovec iov = {
                 .iov_base = &cnt,
@@ -80,6 +83,32 @@ namespace socket_utils {
 
         return CMSG_DATA(cmsg);
     }
+
+    std::vector<int> recv_fds(int sockfd) {
+        std::vector<int> results;
+
+        // Peek fd count to allocate proper buffer
+        int cnt;
+        recv(sockfd, &cnt, sizeof(cnt), MSG_PEEK);
+        if (cnt == 0) {
+            // Consume data
+            recv(sockfd, &cnt, sizeof(cnt), MSG_WAITALL);
+            return results;
+        }
+
+        std::vector<char> cmsgbuf;
+        cmsgbuf.resize(CMSG_SPACE(sizeof(int) * cnt));
+
+        void *data = recv_fds(sockfd, cmsgbuf.data(), cmsgbuf.size(), cnt);
+        if (data == nullptr)
+            return results;
+
+        results.resize(cnt);
+        memcpy(results.data(), data, sizeof(int) * cnt);
+
+        return results;
+    }
+
 
     template<typename T>
     inline T read_exact_or(int fd, T fail) {
@@ -141,7 +170,7 @@ namespace socket_utils {
 
 
 
-     int send_fds(int sockfd, void *cmsgbuf, size_t bufsz, const int *fds, int cnt) {
+    static int send_fds(int sockfd, void *cmsgbuf, size_t bufsz, const int *fds, int cnt) {
         iovec iov = {
                 .iov_base = &cnt,
                 .iov_len  = sizeof(cnt),
@@ -165,6 +194,7 @@ namespace socket_utils {
         return xsendmsg(sockfd, &msg, 0);
     }
 
+
     int send_fd(int sockfd, int fd) {
         if (fd < 0) {
             return send_fds(sockfd, nullptr, 0, nullptr, 0);
@@ -173,6 +203,14 @@ namespace socket_utils {
         return send_fds(sockfd, cmsgbuf, sizeof(cmsgbuf), &fd, 1);
     }
 
+    int send_fds(int sockfd, const int *fds, int cnt) {
+        if (cnt == 0) {
+            return send_fds(sockfd, nullptr, 0, nullptr, 0);
+        }
+        std::vector<char> cmsgbuf;
+        cmsgbuf.resize(CMSG_SPACE(sizeof(int) * cnt));
+        return send_fds(sockfd, cmsgbuf.data(), cmsgbuf.size(), fds, cnt);
+    }
 
 
 }

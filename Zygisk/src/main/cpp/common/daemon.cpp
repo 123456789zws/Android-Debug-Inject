@@ -124,7 +124,9 @@ namespace zygiskComm {
         }
 
     }
-
+// 这个是实现的zygisk请求,向zygiskd服务发送请求,但是因为zygiskd 也是我们自己实现的
+// 我们需要和zygiskd 服务中的这个请求的处理相匹配.
+// 如果我们想要和别的zygiskd服务兼容需要去兼容别的zygisk服务
     int ConnectCompanion(size_t index) {
         int fd = Connect(1);
         if (fd == -1) {
@@ -132,13 +134,20 @@ namespace zygiskComm {
             return -1;
         }
         socket_utils::write_u8(fd, (uint8_t) SocketAction::RequestCompanionSocket);
-        socket_utils::write_usize(fd, index);
-        if (socket_utils::read_u8(fd) == 1) {
-            return fd;
-        } else {
-            close(fd);
-            return -1;
-        }
+#ifdef __LP64__
+        socket_utils::write_u32(fd, 1);
+#else
+        socket_utils::write_usize(fd, 0);
+#endif
+        socket_utils::write_u32(fd, index);
+        return fd;
+        // magisk zygis 这里是没有等待的,所以这里也不等待
+//        if (socket_utils::read_u8(fd) == 1) {
+//            return fd;
+//        } else {
+//            close(fd);
+//            return -1;
+//        }
     }
 
     int GetModuleDir(size_t index) {

@@ -10,7 +10,7 @@ void *self_handle = nullptr;
 extern "C" [[gnu::visibility("default")]]
 void entry(void* handle, const char* path) {
     self_handle = handle;
-
+    zygiskComm::InitRequestorSocket(path);
     if (!zygiskComm::PingHeartbeat()) {
         LOGE("Zygisk daemon is not running");
         return;

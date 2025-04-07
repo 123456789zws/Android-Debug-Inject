@@ -1,0 +1,15 @@
+{
+	"traced_pid": 1,
+	"persistence": true,
+	"childProcess": [
+		{
+			"exec": "/system/bin/app_process64",
+			"waitSoPath": "/apex/com.android.art/lib64/libart.so",
+			"waitFunSym": "",
+			"InjectSO": "/data/adb/modules/ZygiskADI/lib/arm64-v8a/libzygisk.so",
+			"InjectFunSym": "entry",
+			"InjectFunArg": "d63138f231"
+
+		}
+	]
+}

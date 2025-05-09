@@ -162,7 +162,8 @@ int main(int argc, char *argv[]) {
         std::string InjectSO = e.value("InjectSO", "");
         std::string InjectFunSym = e.value("InjectFunSym", "");
         std::string InjectFunArg = e.value("InjectFunArg", "");
-        auto cp = ContorlProcess {exec, waitSoPath, waitFunSym, InjectSO, InjectFunSym,InjectFunArg};
+        unsigned int monitorCount = e.value("monitorCount", 0);
+        auto cp = ContorlProcess {exec, waitSoPath, waitFunSym, InjectSO, InjectFunSym,InjectFunArg,monitorCount};
         injectProc.add_childProces(cp);
     }
 

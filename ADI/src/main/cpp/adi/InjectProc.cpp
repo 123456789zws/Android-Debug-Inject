@@ -169,6 +169,10 @@ bool InjectProc::filter_proce_exec_file(pid_t pid, ContorlProcess &cp)
     LOGD("filter_proce_exec_file: %s ,pid:%d ", program.c_str(),pid);
     for (auto &map: cps) {
         if(program == map.exec){
+            if(map.monitorCount == 0){
+                return false;
+            }
+            map.monitorCount -=1;
             cp = map;
             return true;
         }

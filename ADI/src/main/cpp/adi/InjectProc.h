@@ -21,6 +21,7 @@ public:
     std::string InjectSO;
     std::string InjectFunSym;
     std::string InjectFunArg;
+    unsigned int monitorCount;
 
 };
 

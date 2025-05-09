@@ -136,7 +136,7 @@ int ptrace_getregs(pid_t pid, struct pt_regs *regs){
     return 0;
 #else
     if (ptrace(PTRACE_GETREGS, pid, NULL, regs) < 0){
-        printf("[-] Get Regs error, pid:%d, err:%s\n", pid, strerror(errno));
+        LOGE("[-] Get Regs error, pid:%d, err:%s\n", pid, strerror(errno));
         return -1;
     }
 #endif
@@ -165,7 +165,7 @@ int ptrace_setregs(pid_t pid, struct pt_regs *regs){
     return 0;
 #else
     if (ptrace(PTRACE_SETREGS, pid, NULL, regs) < 0){
-        printf("[-] Set Regs error, pid:%d, err:%s\n", pid, strerror(errno));
+        LOGE("[-] Set Regs error, pid:%d, err:%s\n", pid, strerror(errno));
         return -1;
     }
 #endif
@@ -183,7 +183,7 @@ long ptrace_getret(struct pt_regs *regs) {
 #elif defined(__arm__) || defined(__aarch64__) // 真机
     return regs->ARM_r0;
 #else
-    printf("Not supported Environment %s\n", __FUNCTION__);
+    LOGE("Not supported Environment %s\n", __FUNCTION__);
 #endif
 }
 
@@ -198,7 +198,7 @@ long ptrace_getpc(struct pt_regs *regs) {
 #elif defined(__arm__) || defined(__aarch64__)
     return regs->ARM_pc;
 #else
-    printf("Not supported Environment %s\n", __FUNCTION__);
+    LOGE("Not supported Environment %s\n", __FUNCTION__);
 #endif
 }
 
@@ -311,7 +311,7 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
 
     // 开始执行
     if (-1 == ptrace_setregs(pid, regs) || -1 == ptrace_continue(pid)){
-        printf("[-] ptrace set regs or continue error, pid:%d\n", pid);
+        LOGE("[-] ptrace set regs or continue error, pid:%d\n", pid);
         return -1;
     }
 
@@ -321,10 +321,10 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
     waitpid(pid, &stat, WUNTRACED);
 
     // 判断是否成功执行函数
-    printf("[+] ptrace call ret status is %d\n", stat);
+    LOGE("[+] ptrace call ret status is %d\n", stat);
     while (stat != 0xb7f){
         if (ptrace_continue(pid) == -1){
-            printf("[-] ptrace call error");
+            LOGE("[-] ptrace call error");
             return -1;
         }
         waitpid(pid, &stat, WUNTRACED);
@@ -332,7 +332,7 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
 
     // 获取远程进程的寄存器值，方便获取返回值
     if (ptrace_getregs(pid, regs) == -1){
-        printf("[-] After call getregs error");
+        LOGE("[-] After call getregs error");
         return -1;
     }
 
@@ -371,7 +371,7 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
 
     // 开始执行
     if (-1 == ptrace_setregs(pid, regs) || -1 == ptrace_continue(pid)){
-        printf("[-] ptrace set regs or continue error, pid:%d", pid);
+        LOGE("[-] ptrace set regs or continue error, pid:%d", pid);
         return -1;
     }
 
@@ -381,10 +381,10 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
     waitpid(pid, &stat, WUNTRACED);
 
     // 判断是否成功执行函数
-    printf("ptrace call ret status is %lX\n", stat);
+    LOGE("ptrace call ret status is %lX\n", stat);
     while (stat != 0xb7f){
         if (ptrace_continue(pid) == -1){
-            printf("[-] ptrace call error");
+            LOGE("[-] ptrace call error");
             return -1;
         }
         waitpid(pid, &stat, WUNTRACED);
@@ -464,7 +464,7 @@ int ptrace_call(pid_t pid, uintptr_t ExecuteAddr, long *parameters, long num_par
     }
 
 #else // 设备不符合注入器构架
-    printf("[-] Not supported Environment %s\n", __FUNCTION__);
+    LOGE("[-] Not supported Environment %s\n", __FUNCTION__);
 #endif
     return 0;
 }

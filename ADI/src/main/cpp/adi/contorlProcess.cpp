@@ -16,7 +16,7 @@
 #include <fcntl.h>
 #include <sys/sysmacros.h>
 #include <cinttypes>
-#include "InjectProc.h"
+#include "contorlProcess.h"
 #include <string>
 #include <vector>
 #include <array>
@@ -341,26 +341,33 @@ void InjectProc::monitor_process(pid_t pid){
         bool stop = stop_int_app_process_entry(pid);
         if(stop){
             auto local_map = MapScan(std::to_string(getpid()));
-            uintptr_t  remote_waitSoPath_addr = wait_lib_load_get_base(pid, cp.waitSoPath.c_str(),local_map);
-            if(remote_waitSoPath_addr != -1){
-                if(!cp.waitFunSym.empty()){
+            if(!cp.waitSoPath.empty()) {
+                uintptr_t  remote_waitSoPath_addr = wait_lib_load_get_base(pid, cp.waitSoPath.c_str(),local_map);
+                if(remote_waitSoPath_addr != -1){
+                    if(!cp.waitFunSym.empty()){
+                        uintptr_t remote_waitFunSym_addr = get_libFile_Symbol_off((char*)cp.waitSoPath.c_str(),(char*)cp.waitFunSym.c_str())+remote_waitSoPath_addr;
+                        LOGD("waitFunSym is %s, wait Fun exec,waitFunSymAddr : %lx",cp.waitFunSym.c_str(),remote_waitFunSym_addr);
+                        wait_FunSym(pid, (uintptr_t) remote_waitFunSym_addr);
+                    }
+                    LOGD("start, inject so to process");
+                    inject_process(pid,cp.InjectSO.c_str(), cp.InjectFunSym.c_str(),cp.InjectFunArg.c_str());
+                    LOGD("end,   inject so to process");
+                } else{
+                    LOGE("wait_lib_load_get_base:%s failed",cp.waitSoPath.c_str());
 
-                    uintptr_t remote_waitFunSym_addr = get_libFile_Symbol_off((char*)cp.waitSoPath.c_str(),(char*)cp.waitFunSym.c_str())+remote_waitSoPath_addr;
-                    LOGD("waitFunSym is not nul, wait Fun exec,waitFunSymAddr : %lx",remote_waitFunSym_addr);
-                    wait_FunSym(pid, (uintptr_t) remote_waitFunSym_addr);
                 }
-                LOGD("start, inject so to process");
+            }else{
+                LOGD("waitSoPath is null , start inject so to process");
                 inject_process(pid,cp.InjectSO.c_str(), cp.InjectFunSym.c_str(),cp.InjectFunArg.c_str());
                 LOGD("end,   inject so to process");
-            } else{
-                LOGE("wait_lib_load_get_base:%s failed",cp.waitSoPath.c_str());
-
             }
+
         } else{
             LOGE("stop_int_app_process_entry failed");
 
         }
 
+        ptrace(PTRACE_SYSCALL, pid, 0, 0);
         ptrace(PTRACE_CONT, pid, 0, 0);
 
     }

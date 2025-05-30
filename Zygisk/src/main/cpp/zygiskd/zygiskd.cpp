@@ -127,6 +127,17 @@ static void connect_companion(int client, bool is_64_bit) {
 
 
 
+static void get_moddir(int client) {
+    size_t index = socket_utils::read_usize(client);
+    auto moduleDir = Zygiskd::getInstance().getModul_by_index(index);
+    char buf[4096];
+    ssprintf(buf, sizeof(buf), MODULEROOT "/%s", moduleDir.c_str());
+    int dfd = open(buf, O_RDONLY | O_CLOEXEC);
+    socket_utils::send_fd(client,dfd);
+    close(dfd);
+}
+
+
 void handle_daemon_action(int cmd,int fd) {
     LOGD("handle_daemon_action");
 
@@ -158,10 +169,7 @@ void handle_daemon_action(int cmd,int fd) {
         }
         case (uint8_t)zygiskComm::SocketAction::GetModuleDir:
             LOGD("GetModuleDir");
-            size_t index = socket_utils::read_usize(fd);
-            auto moduleDir = Zygiskd::getInstance().getModul_by_index(index);
-            int send_fd = open(moduleDir.c_str(),O_RDONLY);
-            socket_utils::send_fd(fd,send_fd);
+            get_moddir(fd);
             break;
     }
 

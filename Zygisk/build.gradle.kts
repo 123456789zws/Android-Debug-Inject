@@ -30,15 +30,6 @@ android {
         }
     }
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
     externalNativeBuild {
         cmake {
             path("src/main/cpp/CMakeLists.txt")
@@ -46,18 +37,6 @@ android {
         }
     }
 
-    buildFeatures {
-        prefab = true
-    }
     ndkVersion = "27.0.12077973"
 
-}
-
-dependencies {
-
-//    implementation(libs.appcompat)
-//    implementation(libs.material)
-//    testImplementation(libs.junit)
-//    androidTestImplementation(libs.ext.junit)
-//    androidTestImplementation(libs.espresso.core)
 }

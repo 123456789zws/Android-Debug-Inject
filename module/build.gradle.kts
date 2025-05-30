@@ -19,8 +19,8 @@ var git = Grgit.open{  dir = rootProject.rootDir  } // 明确指定目录
 
 
 val moduleId by extra("zygiskADI")
-val moduleName by extra("Android Linux Debug Inject Zygisk")
-val verName by extra("v0-0.1")
+val moduleName by extra("zygiskADI")
+val verName by extra("v0-0.2")
 val verCode by extra(git.log().size)
 val commitHash by extra(git.head().abbreviatedId)
 
@@ -72,6 +72,47 @@ androidComponents.onVariants { variant ->
         archiveFileName.set(zipFileName)
         destinationDirectory.set(layout.buildDirectory.file("outputs/release").get().asFile)
         from(moduleDir)
+    }
+
+    val pushTask = task<Exec>("push$variantCapped") {
+        group = "module"
+        dependsOn(zipTask)
+        commandLine("adb", "push", zipTask.outputs.files.singleFile.path, "/data/local/tmp")
+    }
+
+
+    val installKsuTask = task<Exec>("installKsu$variantCapped") {
+        group = "module"
+        dependsOn(pushTask)
+        commandLine(
+            "adb", "shell", "su", "-c",
+            "/data/adb/ksud module install /data/local/tmp/$zipFileName"
+        )
+    }
+
+    val installMagiskTask = task<Exec>("installMagisk$variantCapped") {
+        group = "module"
+        dependsOn(pushTask)
+        commandLine(
+            "adb",
+            "shell",
+            "su",
+            "-M",
+            "-c",
+            "magisk --install-module /data/local/tmp/$zipFileName"
+        )
+    }
+
+    task<Exec>("installKsuAndReboot$variantCapped") {
+        group = "module"
+        dependsOn(installKsuTask)
+        commandLine("adb", "reboot")
+    }
+
+    task<Exec>("installMagiskAndReboot$variantCapped") {
+        group = "module"
+        dependsOn(installMagiskTask)
+        commandLine("adb", "reboot")
     }
 
 

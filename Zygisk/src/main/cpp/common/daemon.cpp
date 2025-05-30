@@ -21,7 +21,7 @@ namespace zygiskComm {
     }
 
     int Connect(uint8_t retry) {
-        int fd = socket( AF_UNIX, SOCK_STREAM, 0 );
+        int fd = socket( AF_UNIX, SOCK_STREAM|SOCK_CLOEXEC, 0 );
         struct sockaddr_un remote_addr; //服务器端网络地址结构体
         set_sockaddr(remote_addr);
 

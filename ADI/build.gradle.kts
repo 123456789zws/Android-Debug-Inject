@@ -32,8 +32,8 @@ android {
                 cppFlags("")
 
 //                arguments += "-DANDROID_STL=none" //关闭原生stl  如何打卡将关闭ndk自带的stl,需要在导入stl库
-//                cFlags("-std=c18", *defaultCFlags)
-//                cppFlags("-std=c++20", *defaultCFlags)
+                cFlags("-std=c18", *defaultCFlags)
+                cppFlags("-std=c++20", *defaultCFlags)
 //                abiFilters.add("armeabi-v7a")
                 abiFilters.add("arm64-v8a")
 

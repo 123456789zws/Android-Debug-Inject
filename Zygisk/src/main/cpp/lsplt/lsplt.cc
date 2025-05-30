@@ -15,11 +15,13 @@
 #include "syscall.hpp"
 
 namespace {
+const uintptr_t kPageSize = getpagesize();
 
-inline auto PageStart(uintptr_t addr) { return reinterpret_cast<char *>(((addr)&PAGE_MASK)); }
+inline auto PageStart(uintptr_t addr) {
+    return reinterpret_cast<char *>(addr / kPageSize * kPageSize); }
 
 inline auto PageEnd(uintptr_t addr) {
-    return reinterpret_cast<char *>(reinterpret_cast<uintptr_t>(PageStart(addr)) + PAGE_SIZE);
+    return reinterpret_cast<char *>(reinterpret_cast<uintptr_t>(PageStart(addr)) + kPageSize);
 }
 
 struct RegisterInfo {
@@ -44,11 +46,10 @@ struct HookInfo : public lsplt::MapInfo {
 
 class HookInfos : public std::map<uintptr_t, HookInfo, std::greater<>> {
 public:
-    static auto ScanHookInfo() {
+    static auto ScanHookInfo(std::vector<lsplt::MapInfo> maps) {
         static ino_t kSelfInode = 0;
         static dev_t kSelfDev = 0;
         HookInfos info;
-        auto maps = lsplt::MapInfo::Scan();
         if (kSelfInode == 0) {
             auto self = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
             for (auto &map : maps) {
@@ -113,7 +114,6 @@ public:
     }
 
     bool DoHook(uintptr_t addr, uintptr_t callback, uintptr_t *backup) {
-        using PAGE = std::array<char, PAGE_SIZE>;
         LOGV("Hooking %p", reinterpret_cast<void *>(addr));
         auto iter = lower_bound(addr);
         if (iter == end()) return false;
@@ -121,10 +121,36 @@ public:
         auto &info = iter->second;
         if (info.end <= addr) return false;
         const auto len = info.end - info.start;
-        if (!(info.perms & PROT_WRITE)) {
-            mprotect(reinterpret_cast<void *>(info.start), len, info.perms | PROT_WRITE);
+        if (!info.backup && !info.self) {
+            // let os find a suitable address
+            auto *backup_addr = sys_mmap(nullptr, len, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+            LOGD("Backup %p to %p", reinterpret_cast<void *>(addr), backup_addr);
+            if (backup_addr == MAP_FAILED) return false;
+            if (auto *new_addr = sys_mremap(reinterpret_cast<void *>(info.start), len, len,
+                                            MREMAP_FIXED | MREMAP_MAYMOVE, backup_addr);
+                new_addr == MAP_FAILED || new_addr != backup_addr) {
+                return false;
+            }
+            if (auto *new_addr = sys_mmap(reinterpret_cast<void *>(info.start), len,
+                                          PROT_READ | PROT_WRITE | info.perms,
+                                          MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
+                new_addr == MAP_FAILED) {
+                return false;
+            }
+            for (uintptr_t src = reinterpret_cast<uintptr_t>(backup_addr), dest = info.start,
+                           end = info.start + len;
+                 dest < end; src += kPageSize, dest += kPageSize) {
+                memcpy(reinterpret_cast<void *>(dest), reinterpret_cast<void *>(src), kPageSize);
+            }
+            info.backup = reinterpret_cast<uintptr_t>(backup_addr);
         }
-
+        if (info.self) {
+            // self hooking, no need backup since we are always dirty
+            if (!(info.perms & PROT_WRITE)) {
+                info.perms |= PROT_WRITE;
+                mprotect(reinterpret_cast<void *>(info.start), len, info.perms);
+            }
+        }
         auto *the_addr = reinterpret_cast<uintptr_t *>(addr);
         auto the_backup = *the_addr;
         if (*the_addr != callback) {
@@ -137,7 +163,19 @@ public:
         } else {
             info.hooks.emplace(addr, the_backup);
         }
-        mprotect(reinterpret_cast<void *>(info.start), len, info.perms);
+        if (info.hooks.empty() && !info.self) {
+            LOGD("Restore %p from %p", reinterpret_cast<void *>(info.start),
+                 reinterpret_cast<void *>(info.backup));
+            // Note that we have to always use sys_mremap here,
+            // see https://cs.android.com/android/_/android/platform/bionic/+/4200e260d266fd0c176e71fbd720d0bab04b02db
+            if (auto *new_addr =
+                    sys_mremap(reinterpret_cast<void *>(info.backup), len, len,
+                               MREMAP_FIXED | MREMAP_MAYMOVE, reinterpret_cast<void *>(info.start));
+                new_addr == MAP_FAILED || reinterpret_cast<uintptr_t>(new_addr) != info.start) {
+                return false;
+            }
+            info.backup = 0;
+        }
         return true;
     }
 
@@ -203,11 +241,13 @@ HookInfos hook_info;
 
 namespace lsplt {
 inline namespace v2 {
-[[maybe_unused]] std::vector<MapInfo> MapInfo::Scan() {
+[[maybe_unused]] std::vector<MapInfo> MapInfo::Scan(std::string_view pid) {
     constexpr static auto kPermLength = 5;
     constexpr static auto kMapEntry = 7;
     std::vector<MapInfo> info;
-    auto maps = std::unique_ptr<FILE, decltype(&fclose)>{fopen("/proc/self/maps", "r"), &fclose};
+    auto path = "/proc/" + std::string{pid} + "/maps";
+    LOGW("Reading file %s is detectable by the process", path.c_str());
+    auto maps = std::unique_ptr<FILE, decltype(&fclose)>{fopen(path.c_str(), "r"), &fclose};
     if (maps) {
         char *line = nullptr;
         size_t len = 0;
@@ -274,11 +314,11 @@ inline namespace v2 {
     return true;
 }
 
-[[maybe_unused]] bool CommitHook() {
+[[maybe_unused]] bool CommitHook(std::vector<lsplt::MapInfo> &maps) {
     std::unique_lock lock(hook_mutex);
     if (register_info.empty()) return true;
 
-    auto new_hook_info = HookInfos::ScanHookInfo();
+    auto new_hook_info = HookInfos::ScanHookInfo(maps);
     if (new_hook_info.empty()) return false;
 
     new_hook_info.Filter(register_info);
@@ -288,6 +328,11 @@ inline namespace v2 {
     hook_info = std::move(new_hook_info);
 
     return hook_info.DoHook(register_info);
+}
+
+[[maybe_unused]] bool CommitHook() {
+    auto maps = MapInfo::Scan();
+    return CommitHook(maps);
 }
 
 [[gnu::destructor]] [[maybe_unused]] bool InvalidateBackup() {

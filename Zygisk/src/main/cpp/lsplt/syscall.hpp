@@ -4859,11 +4859,11 @@ struct kernel_statx {
     return rc;
   }
   LSS_INLINE long LSS_NAME(ptrace_detach)(pid_t pid) {
-    /* PTRACE_DETACH can sometimes forget to wake up the tracee and it
+    /* PTRACE_DETACH can sometimes forget to wake up the monitor and it
      * then sends job control signals to the real parent, rather than to
      * the tracer. We reduce the risk of this happening by starting a
      * whole new time slice, and then quickly sending a SIGCONT signal
-     * right after detaching from the tracee.
+     * right after detaching from the monitor.
      *
      * We use tkill to ensure that we only issue a wakeup for the thread being
      * detached.  Large multi threaded apps can take a long time in the kernel

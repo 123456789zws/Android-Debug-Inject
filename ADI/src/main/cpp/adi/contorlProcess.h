@@ -2,8 +2,7 @@
 // Created by chic on 2024/11/19.
 //
 
-#ifndef RXPOSED_INJECTPROC_H
-#define RXPOSED_INJECTPROC_H
+#pragma once
 #include <sys/types.h>
 #include <string>
 #include <set>
@@ -11,7 +10,7 @@
 #define STOPPED_WITH(status,sig, event) WIFSTOPPED(status) && (status >> 8 == ((sig) | (event << 8)))
 void func_test(int argc, char *argv[]);
 
-
+bool inject_process(pid_t pid,const char *LibPath,const char *FunctionName,const char*FunctionArgs);
 class ContorlProcess {
 public:
 
@@ -68,6 +67,3 @@ private:
     std::set<pid_t> monitor_pid;
 
 };
-
-
-#endif //RXPOSED_INJECTPROC_H

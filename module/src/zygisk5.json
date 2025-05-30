@@ -4,8 +4,8 @@
 	"childProcess": [
 		{
 			"exec": "/system/bin/app_process64",
-			"waitSoPath": "/system/lib64/libwebviewchromium_loader.so",
-			"waitFunSym": "",
+			"waitSoPath": "/apex/com.android.art/lib64/libart.so",
+			"waitFunSym": "_ZN3artL25ZygoteHooks_nativePreForkEP7_JNIEnvP7_jclass",
 			"InjectSO": "/data/adb/modules/zygiskADI/lib/arm64-v8a/libzygisk.so",
 			"InjectFunSym": "entry",
 			"InjectFunArg": "d63138f231",

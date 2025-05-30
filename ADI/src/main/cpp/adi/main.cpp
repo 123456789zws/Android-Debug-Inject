@@ -14,9 +14,9 @@
 #include <elf.h>
 #include <thread>
 #include "json.hpp"
-#include "InjectProc.h"
+#include "contorlProcess.h"
 #include "logging.h"
-
+#include "parse_args.h"
 using namespace std;
 using json = nlohmann::json;
 
@@ -131,17 +131,24 @@ void clean_trace(int arg) {
     ptrace(PTRACE_DETACH, injectProc.getTracePid(), nullptr, nullptr);
     exit(0);
 }
+int inject_main(pid_t inject_pid,char*InjectSO,char* InjectFunSym,char*InjectFunArg){
 
+}
 
-
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl;
-        return -1;
+int tracee_main_cmd(pid_t tracee_pid,ContorlProcess &cp){
+    InjectProc & injectProc = InjectProc::getInstance();
+    injectProc.setTracePid(tracee_pid);
+    if(tracee_pid <0){
+        LOGD("traced_pid is error");
+        return 0;
     }
-    signal(SIGINT, clean_trace);
 
-    std::ifstream f(argv[1]);
+    injectProc.add_childProces(cp);
+    std::thread ptraceThread(PtraceTask);
+    ptraceThread.join();
+}
+int tracee_main_config(char * file){
+    std::ifstream f(file);
     json jsonData = nlohmann::json::parse(f);
     InjectProc & injectProc = InjectProc::getInstance();
     json array = jsonData["childProcess"];
@@ -167,10 +174,42 @@ int main(int argc, char *argv[]) {
         injectProc.add_childProces(cp);
     }
 
-    LOGD("buile time: %s",__TIMESTAMP__);
     injectProc.setTracePid(traced_pid);
     std::thread ptraceThread(PtraceTask);
     ptraceThread.join();
+}
+
+
+int main(int argc, char *argv[]) {
+    LOGD("buile time: %s",__TIMESTAMP__);
+    signal(SIGINT, clean_trace);
+
+    ProgramArgs args;
+    parse_args(argc, argv, &args);
+
+    if(args.monitor){
+        if(args.config != NULL){
+            LOGD("args.config: %s",args.config);
+            tracee_main_config(args.config);
+        } else{
+            LOGD("ContorlProcess: %s %s %s %s %s %s %d",args.exec,args.waitSoPath,args.waitFunSym, args.injectSoPath, args.injectFunSym,args.injectFunArg,args.monitorCount);
+            auto cp = ContorlProcess {args.exec, args.waitSoPath, args.waitFunSym, args.injectSoPath, args.injectFunSym,args.injectFunArg,args.monitorCount};
+            tracee_main_cmd(args.pid,cp);
+        }
+    }
+    if(args.inject){
+        LOGD("start inject process");
+        int status = 0;
+        if (ptrace(PTRACE_ATTACH, args.pid, NULL, NULL) < 0){
+            LOGE("[-] ptrace attach process error, pid:%d, err:%s\n", args.pid, strerror(errno));
+            return -1;
+        }
+        LOGD("[+] attach porcess success, pid:%d\n", args.pid);
+        waitpid(args.pid, &status, WUNTRACED);
+        inject_process(args.pid,args.injectSoPath, args.injectFunSym,args.injectFunArg);
+        ptrace(PTRACE_CONT, args.pid, 0, 0);
+    }
+
     return 0;
 }
 

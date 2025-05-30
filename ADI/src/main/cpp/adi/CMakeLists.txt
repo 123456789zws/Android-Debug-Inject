@@ -16,7 +16,7 @@ set (Tutorial_VERSION_MINOR 0)
 
 
 
-add_executable(adi main.cpp InjectProc.cpp logging.cpp elf_symbol_resolver.cpp)
+add_executable(adi main.cpp contorlProcess.cpp logging.cpp elf_symbol_resolver.cpp parse_args.cpp)
 
 target_link_libraries( # Specifies the target library.
         adi

@@ -447,7 +447,7 @@ static void *iterateSymbolTableImpl(const char *symbol_name, ElfW(Sym) * symtab,
     for (int i = 0; i < count; ++i) {
         ElfW(Sym) *sym = symtab + i;
         const char *symbol_name_ = strtab + sym->st_name;
-        if (strcmp(symbol_name_, symbol_name) == 0) {
+        if (strncmp(symbol_name_, symbol_name, strlen(symbol_name)) == 0) {
             return (void *)sym->st_value;
         }
     }

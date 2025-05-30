@@ -1,7 +1,7 @@
 #pragma once
 
 #include "jni_helper.hpp"
-
+#include "logging.h"
 template <typename T>
 constexpr inline auto RoundUpTo(T v, size_t size) {
     return v + size - 1 - ((v + size - 1) & (size - 1));

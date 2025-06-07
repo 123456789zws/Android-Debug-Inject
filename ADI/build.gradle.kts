@@ -19,18 +19,11 @@ val releaseFlags = arrayOf(
 )
 
 android {
-    namespace = "com.singularity.adi"
-    compileSdk = 34
 
     defaultConfig {
-        minSdk = 27
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles("consumer-rules.pro")
         externalNativeBuild {
             cmake {
-                cppFlags("")
-
 //                arguments += "-DANDROID_STL=none" //关闭原生stl  如何打卡将关闭ndk自带的stl,需要在导入stl库
                 cFlags("-std=c18", *defaultCFlags)
                 cppFlags("-std=c++20", *defaultCFlags)
@@ -58,8 +51,4 @@ android {
     buildFeatures {
         prefab = true
     }
-}
-
-dependencies {
-
 }

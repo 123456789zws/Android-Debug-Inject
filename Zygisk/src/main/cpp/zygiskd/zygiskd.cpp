@@ -17,9 +17,13 @@
 #include "companion.h"
 #include "misc.hpp"
 #include "vector"
+#include "ksu.h"
+#include "apatch.h"
+#include "magisk.h"
+
 #define EPOLL_SIZE 10
 
-
+# define LOG_TAG "zygiskd"
 
 void Zygiskd::foreach_module(int fd,dirent *entry,int modfd){
     if (faccessat(modfd, "disable", F_OK, 0) == 0) {
@@ -53,6 +57,37 @@ void Zygiskd::collect_modules(){
             foreach_module(dfd, entry, modfd);
             close(modfd);
         }
+    }
+}
+
+
+
+
+
+void Zygiskd::rootImpInit() {
+    const char *kernelsu = getenv("KSU");
+    if (kernelsu != nullptr) {
+        LOGD("Detected KernelSU (Version: %s)\n", kernelsu);
+        rootImp =  new ksu();
+        rootImp->init();
+//        root_imp = PROCESS_ROOT_IS_KSU;
+    }
+    const char *apd = getenv("APATCH");
+    if (apd != nullptr) {
+        LOGD("Detected APATCH (Version: %s)\n", apd);
+        rootImp =  new apatch();
+        rootImp->init();
+
+//        root_imp = PROCESS_ROOT_IS_APATCH;
+
+    }
+    if (RootImp::is_magisk_root()) {
+        LOGD("Detected MAGISK\n");
+        rootImp =  new magisk();
+        rootImp->init();
+
+//        root_imp = PROCESS_ROOT_IS_MAGISK;
+
     }
 }
 
@@ -110,7 +145,8 @@ static void connect_companion(int client, bool is_64_bit) {
             fcntl(fds[1], F_SETFD, 0);
             char buf[16];
             ssprintf(buf, sizeof(buf), "%d", fds[1]);
-            execl(exe.c_str(), "","companion", buf, (char *) nullptr);
+            LOGD("zygiskd startup companion %s",exe.c_str());
+            execl(exe.c_str(), "zygiskd","companion", buf, (char *) nullptr);
             exit(-1);
         }
         close(fds[1]);
@@ -135,6 +171,8 @@ static void get_moddir(int client) {
     int dfd = open(buf, O_RDONLY | O_CLOEXEC);
     socket_utils::send_fd(client,dfd);
     close(dfd);
+    LOGD("get_moddir:%s",buf);
+
 }
 
 
@@ -153,7 +191,7 @@ void handle_daemon_action(int cmd,int fd) {
         case (uint8_t)zygiskComm::SocketAction::GetProcessFlags:{
             LOGD("GetProcessFlags");
             uid_t uid =socket_utils::read_u32(fd);
-            int flags =  RootImp::getInstance().getProcessFlags(uid);
+            int flags =  Zygiskd::getRootImp()->getProcessFlags(uid);
             socket_utils::write_u32(fd,flags);
             break;
         }
@@ -182,6 +220,18 @@ void zygiskd_handle(int client_fd){
         case (uint8_t)zygiskComm::SocketAction::PingHeartBeat:
             LOGD("HandleEvent PingHeartBeat");
             break;
+        case (uint8_t)zygiskComm::SocketAction::CacheMountNamespace: {
+            pid_t pid =socket_utils::read_u32(client_fd);
+            Zygiskd::getInstance().getRootImp()->cache_mount_namespace(pid);
+        }
+        case (uint8_t)zygiskComm::SocketAction::UpdateMountNamespace:{
+            zygiskComm::MountNamespace type  = static_cast<zygiskComm::MountNamespace>(socket_utils::read_u8(client_fd));
+            int fd = Zygiskd::getInstance().getRootImp()->update_mount_namespace(type);
+            socket_utils::write_u32(client_fd,getpid());
+            socket_utils::write_u32(client_fd,fd);
+            break;
+        }
+
         case (uint8_t)zygiskComm::SocketAction::ZygoteRestart:
             LOGD("HandleEvent ZygoteRestart");
             break;
@@ -199,14 +249,14 @@ void zygiskd_handle(int client_fd){
 
 void zygiskd_main(char * exec_path ,const char* requestSocketPath){
 
-    int server_fd;
     int client_fd;
     int epfd;
 
     zygiskComm::InitRequestorSocket(requestSocketPath);
     Zygiskd::getInstance().set_exec_path(exec_path);
     Zygiskd::getInstance().collect_modules();
-    server_fd = socket(AF_UNIX,SOCK_STREAM,0);
+    Zygiskd::getInstance().rootImpInit();
+    int server_fd = socket(AF_UNIX,SOCK_STREAM,0);
 
     if (server_fd < 0){
         LOGE("Create Socket Errors, %d",server_fd);
@@ -274,6 +324,7 @@ void zygiskd_main(char * exec_path ,const char* requestSocketPath){
 
 
 int main(int argc, char *argv[]) {
+    LOGD("zygiskd start run , arg1:%s",argv[1]);
 
     if (argc > 1) {
         if (strcmp(argv[1], "companion") == 0) {
@@ -304,7 +355,6 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         else if (strcmp(argv[1], "unix_socket") == 0) {
-            LOGD("zygiskd start run , arg1:%s",argv[1]);
             zygiskd_main(argv[0],argv[2]);
             return 0;
         }

@@ -338,7 +338,8 @@ struct HookContext {
     bool hook_zygote_jni();
     void restore_zygote_hook(JNIEnv *env);
     bool hook_jni_methods(JNIEnv *env, const char *clz, JNIMethods methods);
-
     private:
     void register_hook(dev_t dev, ino_t inode, const char *symbol, void *new_func, void **old_func);
 };
+
+bool update_mount_namespace(zygiskComm::MountNamespace namespace_type) ;

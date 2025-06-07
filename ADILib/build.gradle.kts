@@ -11,19 +11,15 @@ val defaultCFlags = arrayOf(
 
 
 android {
-    namespace = "com.hepta.adilib"
-    compileSdk = 34
 
     defaultConfig {
-        minSdk = 27
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
         externalNativeBuild {
             cmake {
                 abiFilters.add("arm64-v8a")
-                abiFilters.add("armeabi-v7a")
-
+//                abiFilters.add("armeabi-v7a")
             }
         }
     }
@@ -47,15 +43,4 @@ android {
     buildFeatures {
         prefab = true
     }
-    ndkVersion = "27.0.12077973"
-
-}
-
-dependencies {
-
-    //    implementation(libs.appcompat)
-//    implementation(libs.material)
-//    testImplementation(libs.junit)
-//    androidTestImplementation(libs.ext.junit)
-//    androidTestImplementation(libs.espresso.core)
 }

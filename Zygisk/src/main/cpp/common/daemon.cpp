@@ -80,7 +80,7 @@ namespace zygiskComm {
         std::vector<Module> modules;
         UniqueFd fd = Connect(1);
         if (fd == -1) {
-            PLOGE("ReadModules");
+            PLOGE("ReadModules failed");
             return modules;
         }
         socket_utils::write_u8(fd, (uint8_t) SocketAction::ReadModules);
@@ -124,6 +124,32 @@ namespace zygiskComm {
         }
 
     }
+
+    void CacheMountNamespace(pid_t pid) {
+        UniqueFd fd = Connect(1);
+        if (fd == -1) {
+            PLOGE("CacheMountNamespace");
+        }
+        socket_utils::write_u8(fd, (uint8_t) SocketAction::CacheMountNamespace);
+        socket_utils::write_u32(fd, (uint32_t) pid);
+    }
+
+    std::string UpdateMountNamespace(MountNamespace type) {
+        UniqueFd fd = Connect(1);
+        if (fd == -1) {
+            PLOGE("UpdateMountNamespace");
+            return "";
+        }
+        socket_utils::write_u8(fd, (uint8_t) SocketAction::UpdateMountNamespace);
+        socket_utils::write_u8(fd, (uint8_t) type);
+        uint32_t target_pid = socket_utils::read_u32(fd);
+        int target_fd = (int) socket_utils::read_u32(fd);
+        if (target_fd == 0) return "";
+        return "/proc/" + std::to_string(target_pid) + "/fd/" + std::to_string(target_fd);
+    }
+
+
+
 // 这个是实现的zygisk请求,向zygiskd服务发送请求,但是因为zygiskd 也是我们自己实现的
 // 我们需要和zygiskd 服务中的这个请求的处理相匹配.
 // 如果我们想要和别的zygiskd服务兼容需要去兼容别的zygisk服务

@@ -2,13 +2,11 @@ import android.databinding.tool.ext.capitalizeUS
 import org.ajoberstar.grgit.Grgit
 
 plugins {
-    alias(libs.plugins.android.application)
+    alias(libs.plugins.android.library)
     alias(libs.plugins.grgit)
 }
 android{
 
-    namespace = "com.singularity.zygisk"
-    compileSdk = 34
     buildFeatures {
         resValues = false
         buildConfig = false

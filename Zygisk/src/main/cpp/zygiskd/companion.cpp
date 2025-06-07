@@ -23,7 +23,7 @@
 #include <vector>
 #include <thread>
 
-# define LOG_TAG "zygisk-commpanion"
+# define LOG_TAG "zygiskCommpanion"
 
 using comp_entry = void(*)(int);
 
@@ -74,6 +74,8 @@ void entry_thread(int client,comp_entry entry){
 
 /* WARNING: Dynamic memory based */
 void companion_entry(int socket) {
+    LOGW("start companion_entry:%d",getpid());
+
     if (getuid() != 0 || fcntl(socket, F_GETFD) < 0)
         exit(-1);
 
@@ -86,6 +88,7 @@ void companion_entry(int socket) {
         for (int fd : module_fds) {
             comp_entry entry = nullptr;
             struct stat s{};
+
             if (fstat(fd, &s) == 0 && S_ISREG(s.st_mode)) {
                 android_dlextinfo info {
                         .flags = ANDROID_DLEXT_USE_LIBRARY_FD,

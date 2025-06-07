@@ -11,11 +11,8 @@ val defaultCFlags = arrayOf(
 
 
 android {
-    namespace = "com.hepta.zygisk"
-    compileSdk = 34
 
     defaultConfig {
-        minSdk = 27
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -36,7 +33,5 @@ android {
             version = "3.22.1"
         }
     }
-
-    ndkVersion = "27.0.12077973"
 
 }

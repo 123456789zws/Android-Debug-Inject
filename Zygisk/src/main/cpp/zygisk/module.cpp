@@ -321,29 +321,23 @@ void ZygiskContext::run_modules_post() {
         if (m.tryUnload()) modules_unloaded++;
     }
 
-    if (modules.size() > 0) {
-        LOGD("modules unloaded: %zu/%zu", modules_unloaded, modules.size());
-//        clean_trace("jit-cache-zygisk", modules.size(), modules_unloaded, true);
-    }
+//    if (modules.size() > 0) {
+//        LOGD("modules unloaded: %zu/%zu", modules_unloaded, modules.size());
+////        clean_trace("jit-cache-zygisk", modules.size(), modules_unloaded, true);
+//    }
 }
 
 void ZygiskContext::app_specialize_pre() {
-    if (!(flags & APP_FORK_AND_SPECIALIZE)) {
-        // Avoid fetching process flags twice
-        info_flags = zygiskComm::GetProcessFlags(args.app->uid);
-    }
-
-//    if ((info_flags & IS_FIRST_PROCESS) && !g_hook->zygote_unmounted) {
-//        zygiskComm::CacheMountNamespace(getpid());
-//    }
+    flags |= APP_SPECIALIZE;
+    info_flags = zygiskComm::GetProcessFlags(args.app->uid);
 
     if ((info_flags & UNMOUNT_MASK) == UNMOUNT_MASK) {
         LOGI("[%s] is on the denylist\n", process);
         flags |= DO_REVERT_UNMOUNT;
+    }else{
+        run_modules_pre();
     }
 
-    flags |= APP_SPECIALIZE;
-    run_modules_pre();
 }
 
 void ZygiskContext::app_specialize_post() {
@@ -384,6 +378,7 @@ void ZygiskContext::nativeSpecializeAppProcess_post() {
 void ZygiskContext::nativeForkSystemServer_pre() {
     LOGV("pre forkSystemServer\n");
     flags |= SERVER_FORK_AND_SPECIALIZE;
+    process = "system_server";
 
     fork_pre();
     if (is_child()) {
@@ -405,19 +400,18 @@ void ZygiskContext::nativeForkAndSpecialize_pre() {
     LOGV("pre forkAndSpecialize [%s]\n", process);
     flags |= APP_FORK_AND_SPECIALIZE;
 
-    info_flags = zygiskComm::GetProcessFlags(args.app->uid);
 
-    if (!g_hook->zygote_unmounted) {
-        // Cache mount profiles if not done
-//        if (info_flags & IS_FIRST_PROCESS) {
-//            zygiskComm::CacheMountNamespace(getpid());
-//        }
-//
-//        // Unmount the root implementation for Zygote
-//        update_mount_namespace(zygiskComm::MountNamespace::Clean);
-        g_hook->zygote_unmounted = true;
-        LOGV("zygote process mounting points cleared");
-    }
+//    if (!g_hook->zygote_unmounted) {
+//        // Cache mount profiles if not done
+////        if (info_flags & IS_FIRST_PROCESS) {
+////            zygiskComm::CacheMountNamespace(getpid());
+////        }
+////
+////        // Unmount the root implementation for Zygote
+////        update_mount_namespace(zygiskComm::MountNamespace::Clean);
+//        g_hook->zygote_unmounted = true;
+//        LOGV("zygote process mounting points cleared");
+//    }
 
     fork_pre();
     if (is_child()) {
@@ -436,21 +430,21 @@ void ZygiskContext::nativeForkAndSpecialize_post() {
 
 // -----------------------------------------------------------------
 
-//bool ZygiskContext::update_mount_namespace(zygiskd::MountNamespace namespace_type) {
-//    std::string ns_path = zygiskComm::UpdateMountNamespace(namespace_type);
-//    if (!ns_path.starts_with("/proc/")) {
-//        PLOGE("update mount namespace [%s]", ns_path.data());
-//        return false;
-//    }
-//
-//    auto updated_ns = open(ns_path.data(), O_RDONLY);
-//    if (updated_ns >= 0) {
-//        LOGD("set mount namespace to [%s] fd=[%d]\n", ns_path.data(), updated_ns);
-//        setns(updated_ns, CLONE_NEWNS);
-//    } else {
-//        PLOGE("open mount namespace [%s]", ns_path.data());
-//        return false;
-//    }
-//    close(updated_ns);
-//    return true;
-//}
+bool update_mount_namespace(zygiskComm::MountNamespace namespace_type) {
+    std::string ns_path = zygiskComm::UpdateMountNamespace(namespace_type);
+    if (!ns_path.starts_with("/proc/")) {
+        PLOGE("update mount namespace [%s]", ns_path.data());
+        return false;
+    }
+
+    auto updated_ns = open(ns_path.data(), O_RDONLY);
+    if (updated_ns >= 0) {
+        LOGD("set mount namespace to [%s] fd=[%d]\n", ns_path.data(), updated_ns);
+        setns(updated_ns, CLONE_NEWNS);
+    } else {
+        PLOGE("open mount namespace [%s]", ns_path.data());
+        return false;
+    }
+    close(updated_ns);
+    return true;
+}

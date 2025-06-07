@@ -99,26 +99,56 @@ DCL_HOOK_FUNC(static char *, strdup, const char *str) {
     return old_strdup(str);
 }
 
+
+void revert_unmount(){
+    const char* mountpoint = "/data/adb/modules";
+    if (umount2(mountpoint, MNT_DETACH) != -1) {
+        LOGD("Unmounted (%s)", mountpoint);
+    } else {
+        LOGD("Unmount (%s) Failed", mountpoint);
+    }
+}
+
+
 // Skip actual fork and return cached result if applicable
 DCL_HOOK_FUNC(int, fork) { return (g_ctx && g_ctx->pid >= 0) ? g_ctx->pid : old_fork(); }
 
 // Unmount stuffs in the process's private mount namespace
+// Unmount stuffs in the process's private mount namespace
 DCL_HOOK_FUNC(static int, unshare, int flags) {
     int res = old_unshare(flags);
-    if (g_ctx && (flags & CLONE_NEWNS) != 0 && res == 0 &&
-        // Skip system server and the first app process since we don't need to hide traces for them
-        !(g_ctx->flags & SERVER_FORK_AND_SPECIALIZE) && !(g_ctx->info_flags & IS_FIRST_PROCESS)) {
-        if (g_ctx->info_flags & (PROCESS_IS_MANAGER | PROCESS_GRANTED_ROOT)) {
-//            ZygiskContext::update_mount_namespace(zygiskd::MountNamespace::Root);
-        } else if (!(g_ctx->flags & DO_REVERT_UNMOUNT)) {
-//            ZygiskContext::update_mount_namespace(zygiskd::MountNamespace::Module);
+    if (g_ctx && (flags & CLONE_NEWNS) != 0 && res == 0) {
+        if (g_ctx->flags & DO_REVERT_UNMOUNT) {
+            revert_unmount();
         }
-        old_unshare(CLONE_NEWNS);
+        // Restore errno back to 0
+        errno = 0;
     }
-    // Restore errno back to 0
-    errno = 0;
     return res;
 }
+
+//DCL_HOOK_FUNC(static int, unshare, int flags) {
+//    LOGV("unshare called in [tid, pid]: %d, %d", gettid(), getpid());
+//    int res = old_unshare(flags);
+//    if (g_ctx && (flags & CLONE_NEWNS) != 0 && res == 0 &&
+//        // Skip system server and the first app process since we don't need to hide traces for them
+//        !(g_ctx->flags & SERVER_FORK_AND_SPECIALIZE) && !(g_ctx->info_flags & IS_FIRST_PROCESS)) {
+//        if (g_ctx->info_flags & (PROCESS_IS_MANAGER | PROCESS_GRANTED_ROOT)) {
+////            ZygiskContext::update_mount_namespace(zygiskd::MountNamespace::Root);
+//            zygiskComm::UpdateMountNamespace(zygiskComm::MountNamespace::Root);
+//        } else if (!(g_ctx->flags & DO_REVERT_UNMOUNT)) {
+//            zygiskComm::UpdateMountNamespace(zygiskComm::MountNamespace::Module);
+////            ZygiskContext::update_mount_namespace(zygiskd::MountNamespace::Module);
+//        }
+//        old_unshare(CLONE_NEWNS);
+//    }
+//    // Restore errno back to 0
+//    errno = 0;
+//    return res;
+//}
+
+
+
 
 // We cannot directly call `munmap` to unload ourselves, otherwise when `munmap` returns,
 // it will return to our code which has been unmapped, causing segmentation fault.

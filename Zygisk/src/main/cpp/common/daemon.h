@@ -52,12 +52,17 @@ namespace zygiskComm {
         PingHeartBeat ,
         RequestLogcatFd,
         GetProcessFlags,
+        CacheMountNamespace,
+        UpdateMountNamespace,
         ReadModules,
         RequestCompanionSocket,
         GetModuleDir,
         ZygoteRestart,
         SystemServerStarted,
     };
+
+    enum class MountNamespace { Clean, Root, Module };
+
 
     void InitRequestorSocket(const char *path);
 
@@ -70,6 +75,8 @@ namespace zygiskComm {
     std::vector<Module> ReadModules();
 
     uint32_t GetProcessFlags(uid_t uid);
+
+    std::string UpdateMountNamespace(MountNamespace type);
 
     int ConnectCompanion(size_t index);
 
